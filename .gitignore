@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment variables (sensitive)
+.env
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# User uploaded files
+uploads/
+
+# Claude internal files
+.claude/
+
+# Test images
+test_img*.png
+
+# OS files
+.DS_Store
+Thumbs.db

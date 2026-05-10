@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Plataforma de Aprobaciones</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+      Aprobaciones
+    </div>
+    <div class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/admin" class="active">Administrar</a>
+      <form method="POST" action="/admin/logout" style="margin:0">
+        <button type="submit" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);font-size:14px;font-weight:500;cursor:pointer;">Salir</button>
+      </form>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Panel de Administración</h1>
+      <p>Crea solicitudes y gestiona las aprobaciones</p>
+    </div>
+
+    <div class="admin-grid">
+      <!-- Create Form -->
+      <div class="panel">
+        <div class="panel-header">Nueva solicitud de aprobación</div>
+        <div class="panel-body">
+          <form id="create-form">
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input type="text" class="form-input" id="title" placeholder="Ej: Logo para campaña verano" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Categoría</label>
+              <select class="form-input" id="category" required>
+                <option value="Web">Web</option>
+                <option value="Diario">Diario</option>
+                <option value="Grafica">Gráfica</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" id="option-label-1">Opción 1</label>
+              <div class="file-upload" id="drop1">
+                <input type="file" accept="image/*" id="file1" required>
+                <div class="file-upload-text">
+                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
+                </div>
+                <img class="file-upload-preview" id="preview1" alt="">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" id="option-label-2">Opción 2</label>
+              <div class="file-upload" id="drop2">
+                <input type="file" accept="image/*" id="file2" required>
+                <div class="file-upload-text">
+                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
+                </div>
+                <img class="file-upload-preview" id="preview2" alt="">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" id="option-label-3">Opción 3</label>
+              <div class="file-upload" id="drop3">
+                <input type="file" accept="image/*" id="file3" required>
+                <div class="file-upload-text">
+                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
+                </div>
+                <img class="file-upload-preview" id="preview3" alt="">
+              </div>
+            </div>
+
+            <!-- Extra pages for Diario -->
+            <div id="extra-options"></div>
+
+            <div id="add-option-wrap" style="display:none; margin-bottom:16px;">
+              <button type="button" class="btn-add-option" id="btn-add-option">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Agregar página
+              </button>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-create">Crear solicitud</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Management Table -->
+      <div class="panel">
+        <div class="panel-header">Gestión de aprobaciones</div>
+        <div class="table-controls">
+          <button class="filter-btn active" data-filter="all">Todas</button>
+          <button class="filter-btn" data-filter="pending">Pendientes</button>
+          <button class="filter-btn" data-filter="approved">Aprobadas</button>
+          <button class="filter-btn" data-filter="discarded">Descartadas</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Categoría</th>
+                <th>Imágenes</th>
+                <th>Estado</th>
+                <th>Selección</th>
+                <th>Comentarios</th>
+                <th>Fecha</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+        <div id="table-empty" style="display:none; text-align:center; padding:40px; color:#94a3b8; font-size:14px;">
+          No hay registros
+        </div>
+        <div class="cleanup-bar">
+          <p>Eliminar aprobaciones con más de 7 días</p>
+          <button class="btn-cleanup" id="btn-cleanup">Limpiar archivos antiguos</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" id="lightbox-close">&times;</button>
+    <div class="lightbox-zoom-level" id="lightbox-zoom-level">100%</div>
+    <img id="lightbox-img" src="" alt="Vista completa">
+    <div class="lightbox-hint">Scroll para hacer zoom · Arrastrá para mover · Doble clic para resetear</div>
+  </div>
+
+  <div class="toast-container" id="toasts"></div>
+
+  <script src="/js/lightbox.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

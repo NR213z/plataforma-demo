@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Aprobaciones</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+      Aprobaciones
+    </div>
+    <div class="nav-links">
+      <a href="/" class="active">Dashboard</a>
+      <a href="/admin">Administrar</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Pendientes de aprobación<span class="badge" id="count">0</span></h1>
+      <p>Selecciona una categoría y revisa cada solicitud</p>
+    </div>
+
+    <div class="category-tabs" id="category-tabs">
+      <button class="category-tab active" data-category="">Todas</button>
+      <button class="category-tab" data-category="Web">Web</button>
+      <button class="category-tab" data-category="Diario">Diario</button>
+      <button class="category-tab" data-category="Grafica">Gráfica</button>
+    </div>
+
+    <div class="trello-grid" id="approvals"></div>
+
+    <div class="empty-state" id="empty" style="display:none">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+        <line x1="9" y1="9" x2="9.01" y2="9"/>
+        <line x1="15" y1="9" x2="15.01" y2="9"/>
+      </svg>
+      <h3>Todo aprobado</h3>
+      <p>No hay solicitudes pendientes en esta categoría</p>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="detail-modal" id="detail-modal">
+    <div class="detail-content" id="detail-content">
+      <button class="detail-close" id="detail-close">&times;</button>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Drawing Canvas Modal -->
+  <div class="draw-modal" id="draw-modal">
+    <div class="draw-toolbar">
+      <button class="draw-tool" id="draw-undo" title="Deshacer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 3L3 13"/></svg>
+      </button>
+      <button class="draw-tool" id="draw-clear" title="Borrar todo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+      <div class="draw-divider"></div>
+      <div class="draw-colors">
+        <button class="draw-color active" data-color="#dc2626" style="background:#dc2626"></button>
+        <button class="draw-color" data-color="#facc15" style="background:#facc15"></button>
+        <button class="draw-color" data-color="#22c55e" style="background:#22c55e"></button>
+        <button class="draw-color" data-color="#3b82f6" style="background:#3b82f6"></button>
+        <button class="draw-color" data-color="#ffffff" style="background:#ffffff"></button>
+        <button class="draw-color" data-color="#000000" style="background:#000000"></button>
+      </div>
+      <div class="draw-divider"></div>
+      <input type="range" id="draw-size" min="2" max="20" value="5" title="Tamaño">
+      <div style="flex:1"></div>
+      <button class="draw-btn-cancel" id="draw-cancel">Cancelar</button>
+      <button class="draw-btn-save" id="draw-save">Continuar →</button>
+    </div>
+    <div class="draw-canvas-wrap">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+
+    <!-- Paso 2: redactar comentario -->
+    <div class="draw-compose" id="draw-compose">
+      <div class="draw-compose-card">
+        <div class="draw-compose-header">
+          <h3>Agregá un comentario a la marca</h3>
+          <button class="draw-compose-back" id="draw-compose-back" title="Volver al dibujo">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver al dibujo
+          </button>
+        </div>
+        <div class="draw-compose-body">
+          <img id="draw-preview" alt="Vista previa de la marca">
+          <div class="draw-compose-form">
+            <label class="form-label">Comentario (opcional)</label>
+            <textarea id="draw-comment" placeholder="Ej: Cambiar el color del título, mover el logo a la izquierda, etc."></textarea>
+            <div class="draw-compose-actions">
+              <button class="draw-btn-cancel" id="draw-compose-cancel">Cancelar</button>
+              <button class="draw-btn-save" id="draw-compose-send">Enviar comentario</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" id="lightbox-close">&times;</button>
+    <div class="lightbox-zoom-level" id="lightbox-zoom-level">100%</div>
+    <img id="lightbox-img" src="" alt="Vista completa">
+    <div class="lightbox-hint">Scroll para hacer zoom · Arrastrá para mover · Doble clic para resetear</div>
+  </div>
+
+  <div class="toast-container" id="toasts"></div>
+
+  <script src="/js/lightbox.js"></script>
+  <script src="/js/draw.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
