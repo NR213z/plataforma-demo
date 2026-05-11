@@ -24,16 +24,22 @@ function escapeMarkdown(text = '') {
 async function sendTelegramMsg(text, extra = {}) {
   const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown', ...extra }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-  } catch (err) {
-    console.error('[Telegram] Error:', err.message);
-  }
+
+  // Soporta múltiples destinatarios separados por coma: "123456,789012,..."
+  const chatIds = TELEGRAM_CHAT_ID.split(',').map(id => id.trim()).filter(Boolean);
+
+  await Promise.allSettled(chatIds.map(async chatId => {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown', ...extra }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    } catch (err) {
+      console.error(`[Telegram] Error enviando a ${chatId}:`, err.message);
+    }
+  }));
 }
 
 async function notifyApproval(approval) {
@@ -61,17 +67,18 @@ async function notifyApproval(approval) {
     const img = images[approval.selected_option - 1];
     if (img) {
       const base = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-      try {
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      const chatIds = TELEGRAM_CHAT_ID.split(',').map(id => id.trim()).filter(Boolean);
+      await Promise.allSettled(chatIds.map(chatId =>
+        fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
+            chat_id: chatId,
             photo: `${base}/uploads/${img}`,
             caption: `${optionWord} seleccionada — ${approval.title}`,
           }),
-        });
-      } catch (e) { /* ignore photo errors */ }
+        }).catch(() => {})
+      ));
     }
   }
 
