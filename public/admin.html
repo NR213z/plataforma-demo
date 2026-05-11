@@ -10,16 +10,16 @@
   <nav class="nav">
     <div class="nav-brand">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 11l3 3L22 4"/>
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
       </svg>
       Aprobaciones
     </div>
     <div class="nav-links">
       <a href="/">Dashboard</a>
       <a href="/admin" class="active">Administrar</a>
-      <form method="POST" action="/admin/logout" style="margin:0">
-        <button type="submit" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);font-size:14px;font-weight:500;cursor:pointer;">Salir</button>
+      <span id="nav-user" class="nav-username"></span>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="nav-logout-btn">Salir</button>
       </form>
     </div>
   </nav>
@@ -27,112 +27,200 @@
   <div class="container">
     <div class="page-header">
       <h1>Panel de Administración</h1>
-      <p>Crea solicitudes y gestiona las aprobaciones</p>
     </div>
 
-    <div class="admin-grid">
-      <!-- Create Form -->
-      <div class="panel">
-        <div class="panel-header">Nueva solicitud de aprobación</div>
-        <div class="panel-body">
-          <form id="create-form">
-            <div class="form-group">
-              <label class="form-label">Título</label>
-              <input type="text" class="form-input" id="title" placeholder="Ej: Logo para campaña verano" required>
-            </div>
+    <!-- Admin tabs -->
+    <div class="admin-tabs" id="admin-tabs">
+      <button class="admin-tab active" data-tab="approvals">Solicitudes</button>
+      <button class="admin-tab" data-tab="users" id="tab-users" style="display:none">Usuarios</button>
+    </div>
 
-            <div class="form-group">
-              <label class="form-label">Categoría</label>
-              <select class="form-input" id="category" required>
+    <!-- ═══════ TAB: Solicitudes ═══════ -->
+    <div id="panel-approvals" class="admin-tab-panel">
+      <div class="admin-grid">
+        <!-- Create Form -->
+        <div class="panel">
+          <div class="panel-header">Nueva solicitud</div>
+          <div class="panel-body">
+            <form id="create-form">
+              <div class="form-group">
+                <label class="form-label">Título</label>
+                <input type="text" class="form-input" id="title" placeholder="Ej: Logo campaña verano">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Categoría</label>
+                <select class="form-input" id="category">
+                  <option value="Web">Web</option>
+                  <option value="Diario">Diario</option>
+                  <option value="Grafica">Gráfica</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" id="option-label-1">Opción 1</label>
+                <div class="file-upload" id="drop1">
+                  <input type="file" accept="image/*,application/pdf" id="file1">
+                  <div class="file-upload-text"><strong>Seleccionar imagen</strong><br>o arrastra aquí</div>
+                  <img class="file-upload-preview" id="preview1" alt="">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" id="option-label-2">Opción 2</label>
+                <div class="file-upload" id="drop2">
+                  <input type="file" accept="image/*,application/pdf" id="file2">
+                  <div class="file-upload-text"><strong>Seleccionar imagen</strong><br>o arrastra aquí</div>
+                  <img class="file-upload-preview" id="preview2" alt="">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" id="option-label-3">Opción 3</label>
+                <div class="file-upload" id="drop3">
+                  <input type="file" accept="image/*,application/pdf" id="file3">
+                  <div class="file-upload-text"><strong>Seleccionar imagen</strong><br>o arrastra aquí</div>
+                  <img class="file-upload-preview" id="preview3" alt="">
+                </div>
+              </div>
+
+              <!-- Extra pages (Diario) -->
+              <div id="extra-options"></div>
+              <div id="add-option-wrap" style="display:none;margin-bottom:16px;">
+                <button type="button" class="btn-add-option" id="btn-add-option">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  Agregar página
+                </button>
+              </div>
+
+              <!-- PDF loader (Diario only) -->
+              <div id="pdf-loader-wrap" style="display:none;margin-bottom:16px;">
+                <label class="btn-add-option" style="cursor:pointer;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Cargar desde PDF
+                  <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none">
+                </label>
+              </div>
+
+              <button type="submit" class="btn-submit" id="btn-create">Crear solicitud</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Management Table -->
+        <div class="panel">
+          <div class="panel-header">Gestión de aprobaciones</div>
+          <div class="table-controls">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;flex:1;">
+              <button class="filter-btn active" data-filter="all">Todas</button>
+              <button class="filter-btn" data-filter="pending">Pendientes</button>
+              <button class="filter-btn" data-filter="approved">Aprobadas</button>
+              <button class="filter-btn" data-filter="discarded">Descartadas</button>
+            </div>
+            <div class="admin-filter-row">
+              <select class="filter-select" id="filter-category">
+                <option value="">Todos los sectores</option>
                 <option value="Web">Web</option>
                 <option value="Diario">Diario</option>
                 <option value="Grafica">Gráfica</option>
               </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" id="option-label-1">Opción 1</label>
-              <div class="file-upload" id="drop1">
-                <input type="file" accept="image/*" id="file1" required>
-                <div class="file-upload-text">
-                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
-                </div>
-                <img class="file-upload-preview" id="preview1" alt="">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <input type="month" id="admin-month-filter" class="month-input">
+                <button class="clear-month" id="admin-clear-month" title="Limpiar">✕</button>
               </div>
             </div>
-
-            <div class="form-group">
-              <label class="form-label" id="option-label-2">Opción 2</label>
-              <div class="file-upload" id="drop2">
-                <input type="file" accept="image/*" id="file2" required>
-                <div class="file-upload-text">
-                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
-                </div>
-                <img class="file-upload-preview" id="preview2" alt="">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" id="option-label-3">Opción 3</label>
-              <div class="file-upload" id="drop3">
-                <input type="file" accept="image/*" id="file3" required>
-                <div class="file-upload-text">
-                  <strong>Seleccionar imagen</strong><br>o arrastra aquí
-                </div>
-                <img class="file-upload-preview" id="preview3" alt="">
-              </div>
-            </div>
-
-            <!-- Extra pages for Diario -->
-            <div id="extra-options"></div>
-
-            <div id="add-option-wrap" style="display:none; margin-bottom:16px;">
-              <button type="button" class="btn-add-option" id="btn-add-option">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Agregar página
-              </button>
-            </div>
-
-            <button type="submit" class="btn-submit" id="btn-create">Crear solicitud</button>
-          </form>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th>Categoría</th>
+                  <th>Imágenes</th>
+                  <th>Estado</th>
+                  <th>Selección</th>
+                  <th>Aprobado por</th>
+                  <th>Comentarios</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+          </div>
+          <div id="table-empty" style="display:none;text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No hay registros</div>
+          <div class="cleanup-bar" id="cleanup-bar" style="display:none;">
+            <p>Eliminar aprobaciones con más de 30 días</p>
+            <button class="btn-cleanup" id="btn-cleanup">Limpiar archivos antiguos</button>
+          </div>
         </div>
       </div>
+    </div>
 
-      <!-- Management Table -->
-      <div class="panel">
-        <div class="panel-header">Gestión de aprobaciones</div>
-        <div class="table-controls">
-          <button class="filter-btn active" data-filter="all">Todas</button>
-          <button class="filter-btn" data-filter="pending">Pendientes</button>
-          <button class="filter-btn" data-filter="approved">Aprobadas</button>
-          <button class="filter-btn" data-filter="discarded">Descartadas</button>
+    <!-- ═══════ TAB: Usuarios ═══════ -->
+    <div id="panel-users" class="admin-tab-panel" style="display:none;">
+      <div class="admin-grid">
+        <!-- Create user form -->
+        <div class="panel">
+          <div class="panel-header">Nuevo usuario</div>
+          <div class="panel-body">
+            <form id="user-form">
+              <div class="form-group">
+                <label class="form-label">Usuario</label>
+                <input type="text" class="form-input" id="new-username" placeholder="nombre de usuario">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contraseña</label>
+                <input type="password" class="form-input" id="new-password" placeholder="contraseña">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Rol</label>
+                <select class="form-input" id="new-role">
+                  <option value="usuario">Usuario — solo dashboard</option>
+                  <option value="moderador">Moderador — puede crear solicitudes</option>
+                  <option value="administrador">Administrador — acceso total</option>
+                </select>
+              </div>
+              <button type="submit" class="btn-submit" id="btn-create-user">Crear usuario</button>
+            </form>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Categoría</th>
-                <th>Imágenes</th>
-                <th>Estado</th>
-                <th>Selección</th>
-                <th>Comentarios</th>
-                <th>Fecha</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="table-body"></tbody>
-          </table>
+
+        <!-- Users table -->
+        <div class="panel">
+          <div class="panel-header">Usuarios registrados</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Rol</th>
+                  <th>Creado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body"></tbody>
+            </table>
+          </div>
+          <div id="users-empty" style="display:none;text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No hay usuarios</div>
         </div>
-        <div id="table-empty" style="display:none; text-align:center; padding:40px; color:#94a3b8; font-size:14px;">
-          No hay registros
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Page Picker Modal -->
+  <div id="pdf-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;overflow-y:auto;padding:24px;">
+    <div style="background:var(--surface);border-radius:var(--radius-lg);max-width:900px;margin:0 auto;padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;font-size:18px;">Seleccioná páginas del PDF</h3>
+          <p style="margin:4px 0 0;color:var(--text-secondary);font-size:13px;">Clic en una página para seleccionarla/deseleccionarla</p>
         </div>
-        <div class="cleanup-bar">
-          <p>Eliminar aprobaciones con más de 7 días</p>
-          <button class="btn-cleanup" id="btn-cleanup">Limpiar archivos antiguos</button>
-        </div>
+        <button onclick="document.getElementById('pdf-modal').style.display='none'" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;">Cancelar</button>
+      </div>
+      <div id="pdf-pages-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;max-height:60vh;overflow-y:auto;padding:4px;"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:8px;">
+        <span id="pdf-selected-count" style="align-self:center;font-size:13px;color:var(--text-secondary);">0 páginas seleccionadas</span>
+        <button id="pdf-confirm-btn" class="btn-submit" style="width:auto;padding:10px 24px;" onclick="confirmPdfPages()">Agregar páginas</button>
       </div>
     </div>
   </div>
@@ -141,12 +229,16 @@
   <div class="lightbox" id="lightbox">
     <button class="lightbox-close" id="lightbox-close">&times;</button>
     <div class="lightbox-zoom-level" id="lightbox-zoom-level">100%</div>
+    <a class="lightbox-download" id="lightbox-download" title="Descargar" download>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </a>
     <img id="lightbox-img" src="" alt="Vista completa">
-    <div class="lightbox-hint">Scroll para hacer zoom · Arrastrá para mover · Doble clic para resetear</div>
+    <div class="lightbox-hint">Scroll para zoom · Arrastrá para mover · Doble clic para resetear</div>
   </div>
 
   <div class="toast-container" id="toasts"></div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="/js/lightbox.js"></script>
   <script src="/js/admin.js"></script>
 </body>

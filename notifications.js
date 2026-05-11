@@ -8,113 +8,100 @@ function initEmail() {
     console.log('[Notificaciones] Email no configurado - se omitirán notificaciones por correo');
     return;
   }
-
   transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: parseInt(SMTP_PORT || '587'),
     secure: parseInt(SMTP_PORT || '587') === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
-
-  console.log('[Notificaciones] Email configurado correctamente');
+  console.log('[Notificaciones] Email configurado');
 }
 
-async function sendEmail(approval) {
-  if (!transporter) return;
-  const to = process.env.NOTIFICATION_EMAIL;
-  if (!to) return;
-
-  const optionLabel = `Opción ${approval.selected_option}`;
-  const images = [approval.image1, approval.image2, approval.image3];
-  const selectedImage = images[approval.selected_option - 1];
-
-  try {
-    await transporter.sendMail({
-      from: `"Plataforma de Aprobaciones" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `Aprobado: ${approval.title}`,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #1e293b; color: white; padding: 20px 24px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0; font-size: 18px;">Nueva Aprobación</h2>
-          </div>
-          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
-            <p style="color: #64748b; margin: 0 0 4px;">Título</p>
-            <h3 style="color: #1e293b; margin: 0 0 16px; font-size: 20px;">${approval.title}</h3>
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px;">
-              <p style="margin: 0; color: #166534; font-weight: 600;">Selección: ${optionLabel}</p>
-            </div>
-            <p style="color: #64748b; font-size: 13px; margin: 0;">
-              Aprobado el: ${approval.approved_at || new Date().toLocaleString('es-ES')}
-            </p>
-          </div>
-        </div>
-      `,
-    });
-    console.log(`[Email] Notificación enviada para: ${approval.title}`);
-  } catch (err) {
-    console.error('[Email] Error al enviar:', err.message);
-  }
+function escapeMarkdown(text = '') {
+  return String(text).replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
 }
 
-async function sendTelegram(approval) {
+async function sendTelegramMsg(text, extra = {}) {
   const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-
-  const optionLabel = `Opción ${approval.selected_option}`;
-  const message = [
-    `✅ *Nueva Aprobación*`,
-    ``,
-    `📋 *Título:* ${escapeMarkdown(approval.title)}`,
-    `🎯 *Selección:* ${optionLabel}`,
-    `📅 *Fecha:* ${approval.approved_at || new Date().toLocaleString('es-ES')}`,
-  ].join('\n');
-
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    const res = await fetch(url, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'Markdown',
-      }),
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown', ...extra }),
     });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`HTTP ${res.status}: ${body}`);
-    }
-
-    const images = [approval.image1, approval.image2, approval.image3];
-    const selectedImage = images[approval.selected_option - 1];
-    if (selectedImage) {
-      const photoUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
-      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-      await fetch(photoUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
-          photo: `${baseUrl}/uploads/${selectedImage}`,
-          caption: `Imagen seleccionada - ${approval.title}`,
-        }),
-      });
-    }
-
-    console.log(`[Telegram] Notificación enviada para: ${approval.title}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   } catch (err) {
-    console.error('[Telegram] Error al enviar:', err.message);
+    console.error('[Telegram] Error:', err.message);
   }
-}
-
-function escapeMarkdown(text) {
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
 }
 
 async function notifyApproval(approval) {
-  await Promise.all([sendEmail(approval), sendTelegram(approval)]);
+  const categoryLabel = approval.category || 'Web';
+  const isDiario = categoryLabel === 'Diario';
+  const optionWord = isDiario ? 'Página' : 'Opción';
+  const approver = approval.approved_by_username || 'Usuario';
+
+  // Telegram
+  const tgMsg = [
+    `✅ *Nueva Aprobación*`,
+    ``,
+    `📋 *Título:* ${escapeMarkdown(approval.title)}`,
+    `🏷️ *Categoría:* ${categoryLabel}`,
+    `👤 *Aprobado por:* ${escapeMarkdown(approver)}`,
+    `🎯 *Selección:* ${optionWord} ${approval.selected_option}`,
+    `📅 *Fecha:* ${approval.approved_at || new Date().toLocaleString('es-ES')}`,
+  ].join('\n');
+  await sendTelegramMsg(tgMsg);
+
+  // Optionally send the selected image
+  const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
+  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && approval.selected_option) {
+    const images = [approval.image1, approval.image2, approval.image3].filter(Boolean);
+    const img = images[approval.selected_option - 1];
+    if (img) {
+      const base = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+      try {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            photo: `${base}/uploads/${img}`,
+            caption: `${optionWord} seleccionada — ${approval.title}`,
+          }),
+        });
+      } catch (e) { /* ignore photo errors */ }
+    }
+  }
+
+  // Email
+  if (transporter && process.env.NOTIFICATION_EMAIL) {
+    try {
+      await transporter.sendMail({
+        from: `"Aprobaciones" <${process.env.SMTP_USER}>`,
+        to: process.env.NOTIFICATION_EMAIL,
+        subject: `Aprobado: ${approval.title}`,
+        html: `<p><b>${approval.title}</b> fue aprobado (${optionWord} ${approval.selected_option}) por <b>${approver}</b>.</p>`,
+      });
+    } catch (err) {
+      console.error('[Email] Error:', err.message);
+    }
+  }
 }
 
-module.exports = { initEmail, notifyApproval };
+async function notifyComment(approval, commentText, authorUsername) {
+  const preview = commentText ? commentText.slice(0, 200) : '(imagen adjunta)';
+  const tgMsg = [
+    `💬 *Nuevo comentario*`,
+    ``,
+    `📋 *Solicitud:* ${escapeMarkdown(approval.title)}`,
+    `🏷️ *Categoría:* ${approval.category || 'Web'}`,
+    `👤 *Por:* ${escapeMarkdown(authorUsername || 'Usuario')}`,
+    ``,
+    `_"${escapeMarkdown(preview)}"_`,
+  ].join('\n');
+  await sendTelegramMsg(tgMsg);
+}
+
+module.exports = { initEmail, notifyApproval, notifyComment };

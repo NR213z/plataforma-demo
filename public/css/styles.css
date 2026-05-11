@@ -69,7 +69,8 @@ body {
 
 .nav-links {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
 .nav-links a {
@@ -1402,10 +1403,10 @@ body {
 
 .table-controls {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
 }
 
 .filter-btn {
@@ -1690,6 +1691,345 @@ tr:hover td {
 }
 
 .btn-add-option:hover {
+  border-color: var(--primary);
+  background: #eff6ff;
+}
+
+/* ===== NAV EXTRAS ===== */
+
+.nav-username {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.nav-logout-btn {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nav-logout-btn:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+/* ===== VIEW TOGGLE (dashboard) ===== */
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.view-btn {
+  padding: 8px 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.view-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ===== FILTERS BAR (dashboard) ===== */
+
+.filters-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filters-bar .category-tabs {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.month-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.month-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.month-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.clear-month {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.clear-month:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+/* ===== ADMIN TABS ===== */
+
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.admin-tab {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+
+.admin-tab:hover {
+  color: var(--text);
+}
+
+.admin-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+/* ===== ADMIN FILTERS ROW ===== */
+
+.admin-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* ===== APPROVED INFO BAR ===== */
+
+.approved-info-bar {
+  background: var(--success-light);
+  border-top: 1px solid #bbf7d0;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #166534;
+  font-weight: 500;
+}
+
+.approved-info-bar svg {
+  flex-shrink: 0;
+}
+
+/* ===== APPROVED DATE BADGE (mine view) ===== */
+
+.approved-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: var(--success-light);
+  color: #166534;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ===== LIGHTBOX DOWNLOAD ===== */
+
+.lightbox-download {
+  position: absolute;
+  top: 16px;
+  right: 68px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  z-index: 10;
+  text-decoration: none;
+}
+
+.lightbox-download:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== COMMENT AUTHOR ===== */
+
+.comment-author {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-right: 4px;
+}
+
+/* ===== ROLE BADGES ===== */
+
+.role-badge {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.role-user  { background: #f1f5f9; color: #475569; }
+.role-mod   { background: #ede9fe; color: #5b21b6; }
+.role-admin { background: #fef3c7; color: #92400e; }
+
+/* ===== APPROVED BY TAG ===== */
+
+.approved-by-tag {
+  display: inline-flex;
+  padding: 2px 8px;
+  background: var(--success-light);
+  color: #166534;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ===== PDF PAGE PICKER ===== */
+
+.pdf-page-thumb {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s;
+  background: var(--bg);
+}
+
+.pdf-page-thumb:hover {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.pdf-page-thumb.selected {
+  border-color: var(--primary);
+  background: #eff6ff;
+}
+
+.pdf-thumb-canvas {
+  width: 100%;
+  display: block;
+}
+
+.pdf-page-num {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  font-weight: 500;
+}
+
+.pdf-page-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pdf-page-thumb.selected .pdf-page-check {
+  opacity: 1;
+}
+
+/* ===== DRAG OVER ===== */
+
+.file-upload.drag-over {
   border-color: var(--primary);
   background: #eff6ff;
 }
