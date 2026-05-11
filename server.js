@@ -40,7 +40,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback-secret-change-this',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 12 * 60 * 60 * 1000 }, // 12h
+  cookie: { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 días
 }));
 
 app.use('/uploads', express.static(uploadsDir));
