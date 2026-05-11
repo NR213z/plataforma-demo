@@ -212,11 +212,14 @@ function renderDetail(a) {
     `;
   }).join('');
 
+  const approvedDateStr = a.approved_at
+    ? new Date(a.approved_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
   const approvedInfo = isApproved
     ? `<div class="approved-info-bar">
          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
          Aprobado por <strong>${esc(a.approved_by_username || '—')}</strong>
-         · ${new Date(a.approved_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+         ${approvedDateStr ? `· ${approvedDateStr}` : ''}
        </div>`
     : '';
 
@@ -259,6 +262,14 @@ function renderDetail(a) {
       <button class="detail-approve-btn" id="detail-approve" disabled onclick="approveDetail()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
         Aprobar selección
+      </button>
+    </div>` : ''}
+
+    ${(isApproved || a.status === 'discarded') && ['moderador', 'administrador'].includes(myRole) ? `
+    <div class="detail-footer">
+      <button class="detail-reopen-btn" onclick="reopenDetail()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 8C5.5 4 10 2 15 3.5a9 9 0 1 1-8.9 10.6"/></svg>
+        Volver a pendiente
       </button>
     </div>` : ''}
   `;
@@ -411,6 +422,17 @@ window.approveDetail = async function() {
     btn.disabled = false;
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Aprobar selección';
   }
+};
+
+window.reopenDetail = async function() {
+  if (!confirm('¿Volver a poner esta solicitud en pendiente? Se quitará la aprobación actual.')) return;
+  try {
+    const res = await fetch(`/api/approvals/${currentDetailId}/reopen`, { method: 'PUT' });
+    if (!res.ok) throw new Error();
+    showToast('Solicitud re-abierta', 'success');
+    closeDetail();
+    loadApprovals();
+  } catch { showToast('Error al re-abrir', 'error'); }
 };
 
 // Download helper

@@ -472,6 +472,11 @@ function renderTable(data) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 Descartar
               </button>` : ''}
+            ${!isPending ? `
+              <button class="btn-icon primary" onclick="reopenItem(${a.id})">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 8C5.5 4 10 2 15 3.5a9 9 0 1 1-8.9 10.6"/></svg>
+                Re-abrir
+              </button>` : ''}
             ${canDelete ? `
               <button class="btn-icon danger" onclick="deleteItem(${a.id})">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -504,6 +509,16 @@ async function deleteItem(id) {
     showToast('Eliminado correctamente', 'success');
     loadAll();
   } catch { showToast('Error al eliminar', 'error'); }
+}
+
+async function reopenItem(id) {
+  if (!confirm('¿Volver a poner en pendiente? Se quitará la aprobación actual.')) return;
+  try {
+    const res = await fetch(`/api/approvals/${id}/reopen`, { method: 'PUT' });
+    if (!res.ok) throw new Error();
+    showToast('Solicitud re-abierta', 'success');
+    loadAll();
+  } catch { showToast('Error al re-abrir', 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -612,6 +627,7 @@ function esc(str) {
 // Expose to inline onclick handlers
 window.discardItem = discardItem;
 window.deleteItem  = deleteItem;
+window.reopenItem  = reopenItem;
 window.deleteUser  = deleteUser;
 
 // ── Lightbox download button ───────────────────────────────────────────────────

@@ -68,6 +68,7 @@ function init() {
   if (!arCols.includes('approved_by_username'))  db.exec('ALTER TABLE approval_requests ADD COLUMN approved_by_username TEXT');
   if (!arCols.includes('created_by_id'))         db.exec('ALTER TABLE approval_requests ADD COLUMN created_by_id INTEGER');
   if (!arCols.includes('created_by_username'))   db.exec('ALTER TABLE approval_requests ADD COLUMN created_by_username TEXT');
+  if (!arCols.includes('approved_at'))           db.exec('ALTER TABLE approval_requests ADD COLUMN approved_at TEXT');
 
   const cCols = db.prepare('PRAGMA table_info(comments)').all().map(c => c.name);
   if (!cCols.includes('updated_at'))      db.exec('ALTER TABLE comments ADD COLUMN updated_at TEXT');
@@ -181,6 +182,15 @@ function discard(id) {
   ).run(id);
 }
 
+function reopen(id) {
+  return db.prepare(
+    `UPDATE approval_requests
+     SET status = 'pending', selected_option = NULL,
+         approved_at = NULL, approved_by_id = NULL, approved_by_username = NULL
+     WHERE id = ? AND status != 'pending'`
+  ).run(id);
+}
+
 function deleteById(id) {
   const record = getById(id);
   const comments = getComments(id);
@@ -260,7 +270,7 @@ module.exports = {
   // users
   getUsers, getUserByUsername, getUserById, createUser, updateUserPassword, deleteUser,
   // approvals
-  getPending, getApproved, getAll, getById, create, approve, discard, deleteById,
+  getPending, getApproved, getAll, getById, create, approve, discard, reopen, deleteById,
   getOlderThan, deleteOlderThan,
   // images
   getImages, addExtraImages,

@@ -276,6 +276,13 @@ app.put('/api/approvals/:id/discard', requireAuth, requireModerador, (req, res) 
   res.json({ message: 'Descartado exitosamente' });
 });
 
+// Reopen (reset to pending)
+app.put('/api/approvals/:id/reopen', requireAuth, requireModerador, (req, res) => {
+  const result = db.reopen(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'No encontrado o ya está pendiente' });
+  res.json({ message: 'Solicitud re-abierta exitosamente' });
+});
+
 // Delete
 app.delete('/api/approvals/:id', requireAuth, requireAdmin, (req, res) => {
   const result = db.deleteById(req.params.id);
