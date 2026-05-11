@@ -6,7 +6,7 @@ const path    = require('path');
 const fs      = require('fs');
 const bcrypt  = require('bcryptjs');
 const db      = require('./db');
-const { initEmail, notifyApproval, notifyComment } = require('./notifications');
+const { initEmail, notifyApproval, notifyComment, notifyReopen } = require('./notifications');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -280,6 +280,8 @@ app.put('/api/approvals/:id/discard', requireAuth, requireModerador, (req, res) 
 app.put('/api/approvals/:id/reopen', requireAuth, requireModerador, (req, res) => {
   const result = db.reopen(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'No encontrado o ya está pendiente' });
+  const updated = db.getById(req.params.id);
+  notifyReopen(updated, req.session.username).catch(err => console.error('[Notify]', err));
   res.json({ message: 'Solicitud re-abierta exitosamente' });
 });
 

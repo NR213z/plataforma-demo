@@ -111,4 +111,15 @@ async function notifyComment(approval, commentText, authorUsername) {
   await sendTelegramMsg(tgMsg);
 }
 
-module.exports = { initEmail, notifyApproval, notifyComment };
+async function notifyReopen(approval, reopenedByUsername) {
+  const tgMsg = [
+    `🔄 *Solicitud re-abierta para aprobación*`,
+    ``,
+    `📋 *Título:* ${escapeMarkdown(approval.title)}`,
+    `🏷️ *Categoría:* ${approval.category || 'Web'}`,
+    `👤 *Re-abierta por:* ${escapeMarkdown(reopenedByUsername || 'Usuario')}`,
+  ].join('\n');
+  await sendTelegramMsg(tgMsg);
+}
+
+module.exports = { initEmail, notifyApproval, notifyComment, notifyReopen };
