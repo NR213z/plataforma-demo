@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 
 let transporter = null;
 
@@ -60,25 +62,31 @@ async function notifyApproval(approval) {
   ].join('\n');
   await sendTelegramMsg(tgMsg);
 
-  // Optionally send the selected image
+  // Enviar la imagen aprobada como archivo
   const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
   if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && approval.selected_option) {
     const images = [approval.image1, approval.image2, approval.image3].filter(Boolean);
     const img = images[approval.selected_option - 1];
-    if (img) {
-      const base = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const filePath = img ? path.join(__dirname, 'uploads', img) : null;
+
+    if (filePath && fs.existsSync(filePath)) {
       const chatIds = TELEGRAM_CHAT_ID.split(',').map(id => id.trim()).filter(Boolean);
-      await Promise.allSettled(chatIds.map(chatId =>
-        fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            photo: `${base}/uploads/${img}`,
-            caption: `${optionWord} seleccionada — ${approval.title}`,
-          }),
-        }).catch(() => {})
-      ));
+      const fileBuffer = fs.readFileSync(filePath);
+      const blob = new Blob([fileBuffer], { type: 'image/png' });
+      const caption = `${optionWord} seleccionada — ${approval.title}`;
+
+      await Promise.allSettled(chatIds.map(async chatId => {
+        try {
+          const fd = new FormData();
+          fd.append('chat_id', chatId);
+          fd.append('photo', blob, img);
+          fd.append('caption', caption);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: fd,
+          });
+        } catch (e) { /* ignore photo errors */ }
+      }));
     }
   }
 
