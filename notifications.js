@@ -62,9 +62,9 @@ async function notifyApproval(approval) {
   ].join('\n');
   await sendTelegramMsg(tgMsg);
 
-  // Enviar la imagen aprobada como archivo
+  // Enviar la imagen aprobada como archivo (solo Web y Gráfica, Diario no)
   const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
-  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && approval.selected_option) {
+  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID && approval.selected_option && !isDiario) {
     const images = [approval.image1, approval.image2, approval.image3].filter(Boolean);
     const img = images[approval.selected_option - 1];
     const filePath = img ? path.join(__dirname, 'uploads', img) : null;
