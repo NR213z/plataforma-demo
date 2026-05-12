@@ -44,9 +44,16 @@
         <button class="category-tab" data-category="Grafica">Gráfica</button>
       </div>
       <div class="month-filter">
-        <label>Mes:</label>
-        <input type="month" id="month-filter" class="month-input">
-        <button class="clear-month" id="clear-month" title="Limpiar">✕</button>
+        <div class="month-icon-wrap">
+          <div class="month-icon-btn" id="month-icon-btn" title="Filtrar por mes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+          <input type="month" id="month-filter" class="month-hidden-input">
+        </div>
+        <span class="month-selected-text" id="month-selected-text"></span>
+        <button class="clear-month" id="clear-month" title="Quitar filtro de mes" style="display:none">✕</button>
       </div>
     </div>
 

@@ -124,8 +124,16 @@
                 <option value="Grafica">Gráfica</option>
               </select>
               <div style="display:flex;align-items:center;gap:4px;">
-                <input type="month" id="admin-month-filter" class="month-input">
-                <button class="clear-month" id="admin-clear-month" title="Limpiar">✕</button>
+                <div class="month-icon-wrap">
+                  <div class="month-icon-btn" id="admin-month-icon-btn" title="Filtrar por mes">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  </div>
+                  <input type="month" id="admin-month-filter" class="month-hidden-input">
+                </div>
+                <span class="month-selected-text" id="admin-month-selected-text"></span>
+                <button class="clear-month" id="admin-clear-month" title="Quitar filtro" style="display:none">✕</button>
               </div>
             </div>
           </div>
@@ -218,9 +226,12 @@
         <button onclick="document.getElementById('pdf-modal').style.display='none'" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;">Cancelar</button>
       </div>
       <div id="pdf-pages-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;max-height:60vh;overflow-y:auto;padding:4px;"></div>
-      <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:8px;">
-        <span id="pdf-selected-count" style="align-self:center;font-size:13px;color:var(--text-secondary);">0 páginas seleccionadas</span>
-        <button id="pdf-confirm-btn" class="btn-submit" style="width:auto;padding:10px 24px;" onclick="confirmPdfPages()">Agregar páginas</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:8px;flex-wrap:wrap;">
+        <button id="pdf-select-all-btn" class="btn-add-option" style="width:auto;padding:8px 16px;flex-shrink:0;" onclick="toggleSelectAllPages()">Seleccionar todas</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+          <span id="pdf-selected-count" style="font-size:13px;color:var(--text-secondary);">0 páginas seleccionadas</span>
+          <button id="pdf-confirm-btn" class="btn-submit" style="width:auto;padding:10px 24px;" onclick="confirmPdfPages()">Agregar páginas</button>
+        </div>
       </div>
     </div>
   </div>

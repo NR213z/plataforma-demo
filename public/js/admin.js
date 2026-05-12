@@ -81,9 +81,15 @@ function setupFilters() {
   });
 
   const monthInput = document.getElementById('admin-month-filter');
-  monthInput.addEventListener('change', () => { currentMonth = monthInput.value; loadAll(); });
+  monthInput.addEventListener('change', () => {
+    currentMonth = monthInput.value;
+    updateAdminMonthDisplay(currentMonth);
+    loadAll();
+  });
   document.getElementById('admin-clear-month').addEventListener('click', () => {
-    monthInput.value = ''; currentMonth = ''; loadAll();
+    monthInput.value = ''; currentMonth = '';
+    updateAdminMonthDisplay('');
+    loadAll();
   });
 }
 
@@ -123,7 +129,25 @@ function handleFileChange(input, preview, drop) {
     preview.style.display = 'none';
   }
   drop.classList.add('has-file');
-  drop.querySelector('.file-upload-text').innerHTML = `<strong>${file.name}</strong>`;
+  drop.querySelector('.file-upload-text').innerHTML = `
+    <strong>${esc(file.name)}</strong>
+    <button type="button" class="file-clear-btn">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Quitar
+    </button>
+  `;
+  drop.querySelector('.file-clear-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    clearFileSlot(input, preview, drop);
+  });
+}
+
+function clearFileSlot(input, preview, drop) {
+  input.value = '';
+  if (preview) { preview.src = ''; preview.style.display = 'none'; }
+  drop.classList.remove('has-file');
+  drop.querySelector('.file-upload-text').innerHTML = '<strong>Seleccionar imagen</strong><br>o arrastra aquí';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -202,7 +226,18 @@ function addExtraOption(preloadedFile = null) {
     preview.src = URL.createObjectURL(preloadedFile);
     preview.style.display = 'block';
     drop.classList.add('has-file');
-    drop.querySelector('.file-upload-text').innerHTML = `<strong>${preloadedFile.name}</strong>`;
+    drop.querySelector('.file-upload-text').innerHTML = `
+      <strong>${esc(preloadedFile.name)}</strong>
+      <button type="button" class="file-clear-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Quitar
+      </button>
+    `;
+    drop.querySelector('.file-clear-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      clearFileSlot(input, preview, drop);
+    });
   }
 
   input.addEventListener('change', () => handleFileChange(input, preview, drop));
@@ -406,6 +441,54 @@ function resetForm() {
   addOptionWrap.style.display  = 'none';
   pdfLoaderWrap.style.display  = 'none';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONTH DISPLAY HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+function updateAdminMonthDisplay(value) {
+  const textEl  = document.getElementById('admin-month-selected-text');
+  const clearEl = document.getElementById('admin-clear-month');
+  const iconEl  = document.getElementById('admin-month-icon-btn');
+  if (value) {
+    const [y, m] = value.split('-');
+    const d = new Date(parseInt(y), parseInt(m) - 1);
+    if (textEl)  textEl.textContent = d.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+    if (clearEl) clearEl.style.display = '';
+    if (iconEl)  iconEl.classList.add('has-value');
+  } else {
+    if (textEl)  textEl.textContent = '';
+    if (clearEl) clearEl.style.display = 'none';
+    if (iconEl)  iconEl.classList.remove('has-value');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF SELECT ALL
+// ─────────────────────────────────────────────────────────────────────────────
+window.toggleSelectAllPages = function() {
+  const grid   = document.getElementById('pdf-pages-grid');
+  const thumbs = grid.querySelectorAll('.pdf-page-thumb');
+  const total  = thumbs.length;
+  if (total === 0) return;
+  const allSelected = pdfSelectedPages.size === total;
+
+  pdfSelectedPages.clear();
+  thumbs.forEach(wrapper => {
+    if (!allSelected) {
+      pdfSelectedPages.add(parseInt(wrapper.dataset.page));
+      wrapper.classList.add('selected');
+    } else {
+      wrapper.classList.remove('selected');
+    }
+  });
+
+  const n = pdfSelectedPages.size;
+  document.getElementById('pdf-selected-count').textContent =
+    `${n} página${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`;
+
+  const btn = document.getElementById('pdf-select-all-btn');
+  if (btn) btn.textContent = allSelected ? 'Seleccionar todas' : 'Deseleccionar todas';
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LOAD & RENDER APPROVALS

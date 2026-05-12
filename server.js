@@ -70,6 +70,7 @@ function requireAdmin(req, res, next) {
 
 app.get('/login', (req, res) => {
   if (req.session?.userId) return res.redirect('/');
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
@@ -99,10 +100,12 @@ app.post('/admin/logout', (req, res) => {
 // ── Pages ──────────────────────────────────────────────────────────────────
 
 app.get('/', requireAuth, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 app.get('/admin', requireAuth, requireModerador, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 

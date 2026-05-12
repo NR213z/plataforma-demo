@@ -11,12 +11,13 @@ const detailClose  = document.getElementById('detail-close');
 const monthFilter  = document.getElementById('month-filter');
 const clearMonth   = document.getElementById('clear-month');
 
-let currentCategory = '';
-let currentMonth    = '';
-let currentView     = 'pending'; // 'pending' | 'mine'
-let currentDetailId = null;
+let currentCategory  = '';
+let currentMonth     = '';
+let currentView      = 'pending'; // 'pending' | 'mine'
+let currentDetailId  = null;
 let currentSelection = null;
-let myRole = '';
+let myRole           = '';
+let carouselIndex    = 0;
 
 // ── Init: load user info ────────────────────────────────────────────────────
 fetch('/api/me').then(r => r.json()).then(me => {
@@ -50,14 +51,34 @@ categoryTabs.addEventListener('click', e => {
 });
 
 // ── Month filter ─────────────────────────────────────────────────────────────
+function updateMonthDisplay(value, textId, clearId, iconId) {
+  const textEl  = document.getElementById(textId);
+  const clearEl = document.getElementById(clearId);
+  const iconEl  = document.getElementById(iconId);
+  if (value) {
+    const [y, m] = value.split('-');
+    const d = new Date(parseInt(y), parseInt(m) - 1);
+    if (textEl)  textEl.textContent = d.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+    if (clearEl) clearEl.style.display = '';
+    if (iconEl)  iconEl.classList.add('has-value');
+  } else {
+    if (textEl)  textEl.textContent = '';
+    if (clearEl) clearEl.style.display = 'none';
+    if (iconEl)  iconEl.classList.remove('has-value');
+  }
+}
+
 monthFilter.addEventListener('change', () => {
   currentMonth = monthFilter.value;
+  updateMonthDisplay(currentMonth, 'month-selected-text', 'clear-month', 'month-icon-btn');
   approvalsEl.innerHTML = '';
   loadApprovals();
 });
+
 clearMonth.addEventListener('click', () => {
   monthFilter.value = '';
   currentMonth = '';
+  updateMonthDisplay('', 'month-selected-text', 'clear-month', 'month-icon-btn');
   approvalsEl.innerHTML = '';
   loadApprovals();
 });
@@ -159,6 +180,7 @@ function createCard(a) {
 async function openDetail(id) {
   currentDetailId  = id;
   currentSelection = null;
+  carouselIndex    = 0;
   detailBody.innerHTML = '<div style="padding:60px;text-align:center;color:#94a3b8">Cargando...</div>';
   detailModal.classList.add('active');
 
@@ -176,13 +198,157 @@ async function openDetail(id) {
 function renderDetail(a) {
   const date     = new Date(a.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
   const catClass = (a.category || 'Web').toLowerCase();
-  const isPaged  = a.category === 'Diario';
+  const isDiario = a.category === 'Diario';
   const images   = a.images || [a.image1, a.image2, a.image3].filter(Boolean);
   const isApproved = a.status === 'approved';
 
+  // Diario: auto-select so "Aprobar Diario" is always enabled
+  if (isDiario && !isApproved) {
+    currentSelection = 1;
+  }
+
+  const approvedDateStr = a.approved_at
+    ? new Date(a.approved_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+  const approvedInfo = isApproved
+    ? `<div class="approved-info-bar">
+         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+         Aprobado por <strong>${esc(a.approved_by_username || '—')}</strong>
+         ${approvedDateStr ? `· ${approvedDateStr}` : ''}
+       </div>`
+    : '';
+
+  // Content area: carousel for Diario, option cards for others
+  const contentHtml = isDiario
+    ? buildCarouselHtml(images, isApproved)
+    : buildOptionsHtml(images, isApproved, a);
+
+  // Approve-with-comment button label
+  const approveBtnLabel = isDiario ? 'Aprobar Diario con comentario' : 'Aprobar con comentario';
+  // Show approve-comment btn: always for Diario (auto-selected), hidden for others until selection
+  const showApproveCommentBtn = !isApproved;
+  const approveCommentVisible = !isApproved && (isDiario ? '' : 'display:none');
+
+  detailBody.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-title">${esc(a.title)}</div>
+      <div class="detail-meta">
+        <span class="category-badge ${catClass}">${esc(a.category || 'Web')}</span>
+        <span>·</span><span>Creada el ${date}</span>
+        ${a.created_by_username ? `<span>· por <strong>${esc(a.created_by_username)}</strong></span>` : ''}
+      </div>
+    </div>
+
+    ${approvedInfo}
+
+    ${contentHtml}
+
+    <div class="detail-comments">
+      <div class="detail-comments-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Comentarios y revisiones
+      </div>
+      <div class="comments-list" id="comments-list">${renderComments(a.comments || [])}</div>
+      <div class="comment-form">
+        <textarea id="comment-text" placeholder="Escribí un comentario..."></textarea>
+        <div class="comment-form-actions">
+          <label class="comment-attach-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            Adjuntar
+            <input type="file" id="comment-image" accept="image/*">
+          </label>
+          <span class="comment-attach-name" id="comment-attach-name"></span>
+          <div class="comment-btns">
+            <button class="comment-only-btn" onclick="submitComment()">Solo enviar comentario</button>
+            ${showApproveCommentBtn
+              ? `<button class="comment-approve-btn" id="comment-approve-btn" onclick="submitCommentAndApprove()" style="${approveCommentVisible}">${approveBtnLabel}</button>`
+              : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${!isApproved ? `
+    <div class="detail-footer">
+      ${isDiario
+        ? `<button class="detail-approve-btn" id="detail-approve" onclick="approveDetail()">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+             Aprobar Diario
+           </button>`
+        : `<button class="detail-approve-btn" id="detail-approve" disabled onclick="approveDetail()">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+             Aprobar selección
+           </button>`
+      }
+    </div>` : ''}
+
+    ${(isApproved || a.status === 'discarded') && ['moderador', 'administrador'].includes(myRole) ? `
+    <div class="detail-footer">
+      <button class="detail-reopen-btn" onclick="reopenDetail()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 8C5.5 4 10 2 15 3.5a9 9 0 1 1-8.9 10.6"/></svg>
+        Volver a pendiente
+      </button>
+    </div>` : ''}
+  `;
+
+  // Initialize carousel
+  if (isDiario) updateCarousel();
+
+  // File input listener
+  const fileInput = document.getElementById('comment-image');
+  const fileName  = document.getElementById('comment-attach-name');
+  if (fileInput) fileInput.addEventListener('change', () => {
+    fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : '';
+  });
+}
+
+// ── Carousel ─────────────────────────────────────────────────────────────────
+function buildCarouselHtml(images, isApproved) {
+  const slides = images.map((filename, idx) => `
+    <div class="carousel-slide" data-idx="${idx}">
+      <div class="carousel-img-wrap">
+        <img src="/uploads/${filename}" alt="Página ${idx + 1}" onclick="openLightbox('/uploads/${filename}')" loading="lazy">
+      </div>
+      <div class="carousel-slide-actions">
+        <button onclick="event.stopPropagation(); openLightbox('/uploads/${filename}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+          Ver completa
+        </button>
+        <button onclick="event.stopPropagation(); downloadFile('/uploads/${filename}', '${filename}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar
+        </button>
+        ${!isApproved ? `
+        <button class="btn-mark" onclick="event.stopPropagation(); markOption('${filename}', ${idx + 1})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+          Remarcar
+        </button>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="diario-carousel">
+      <div class="carousel-nav">
+        <button class="carousel-btn" id="carousel-prev" onclick="carouselPrev()" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="carousel-counter">Página <span id="carousel-num">1</span> de ${images.length}</span>
+        <button class="carousel-btn" id="carousel-next" onclick="carouselNext()"${images.length <= 1 ? ' disabled' : ''}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="carousel-slides-wrap">
+        <div class="carousel-slides" id="carousel-slides">${slides}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildOptionsHtml(images, isApproved, a) {
   const optionsHtml = images.map((filename, idx) => {
-    const n     = idx + 1;
-    const label = isPaged ? `Página ${n}` : `Opción ${n}`;
+    const n          = idx + 1;
+    const label      = `Opción ${n}`;
     const isSelected = isApproved && a.selected_option === n;
     return `
       <div class="detail-option${isSelected ? ' selected' : ''}" data-option="${n}" onclick="${isApproved ? '' : `selectDetailOption(${n})`}">
@@ -212,75 +378,34 @@ function renderDetail(a) {
     `;
   }).join('');
 
-  const approvedDateStr = a.approved_at
-    ? new Date(a.approved_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '';
-  const approvedInfo = isApproved
-    ? `<div class="approved-info-bar">
-         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-         Aprobado por <strong>${esc(a.approved_by_username || '—')}</strong>
-         ${approvedDateStr ? `· ${approvedDateStr}` : ''}
-       </div>`
-    : '';
-
-  detailBody.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-title">${esc(a.title)}</div>
-      <div class="detail-meta">
-        <span class="category-badge ${catClass}">${esc(a.category || 'Web')}</span>
-        <span>·</span><span>Creada el ${date}</span>
-        ${a.created_by_username ? `<span>· por <strong>${esc(a.created_by_username)}</strong></span>` : ''}
-      </div>
-    </div>
-
-    ${approvedInfo}
-
-    <div class="detail-options">${optionsHtml}</div>
-
-    <div class="detail-comments">
-      <div class="detail-comments-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        Comentarios y revisiones
-      </div>
-      <div class="comments-list" id="comments-list">${renderComments(a.comments || [])}</div>
-      <div class="comment-form">
-        <textarea id="comment-text" placeholder="Escribí un comentario..."></textarea>
-        <div class="comment-form-actions">
-          <label class="comment-attach-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            Adjuntar
-            <input type="file" id="comment-image" accept="image/*">
-          </label>
-          <span class="comment-attach-name" id="comment-attach-name"></span>
-          <button class="comment-send-btn" id="comment-send" onclick="submitComment()">Enviar</button>
-        </div>
-      </div>
-    </div>
-
-    ${!isApproved ? `
-    <div class="detail-footer">
-      <button class="detail-approve-btn" id="detail-approve" disabled onclick="approveDetail()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-        Aprobar selección
-      </button>
-    </div>` : ''}
-
-    ${(isApproved || a.status === 'discarded') && ['moderador', 'administrador'].includes(myRole) ? `
-    <div class="detail-footer">
-      <button class="detail-reopen-btn" onclick="reopenDetail()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 8C5.5 4 10 2 15 3.5a9 9 0 1 1-8.9 10.6"/></svg>
-        Volver a pendiente
-      </button>
-    </div>` : ''}
-  `;
-
-  const fileInput = document.getElementById('comment-image');
-  const fileName  = document.getElementById('comment-attach-name');
-  if (fileInput) fileInput.addEventListener('change', () => {
-    fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : '';
-  });
+  return `<div class="detail-options">${optionsHtml}</div>`;
 }
 
+function updateCarousel() {
+  const slidesEl = document.getElementById('carousel-slides');
+  if (!slidesEl) return;
+  const total = slidesEl.querySelectorAll('.carousel-slide').length;
+  slidesEl.style.transform = `translateX(-${carouselIndex * 100}%)`;
+  const numEl = document.getElementById('carousel-num');
+  if (numEl) numEl.textContent = carouselIndex + 1;
+  const prev = document.getElementById('carousel-prev');
+  const next = document.getElementById('carousel-next');
+  if (prev) prev.disabled = carouselIndex === 0;
+  if (next) next.disabled = carouselIndex >= total - 1;
+}
+
+window.carouselPrev = function() {
+  if (carouselIndex > 0) { carouselIndex--; updateCarousel(); }
+};
+
+window.carouselNext = function() {
+  const slidesEl = document.getElementById('carousel-slides');
+  if (!slidesEl) return;
+  const total = slidesEl.querySelectorAll('.carousel-slide').length;
+  if (carouselIndex < total - 1) { carouselIndex++; updateCarousel(); }
+};
+
+// ── Comments rendering ────────────────────────────────────────────────────────
 function renderComments(comments) {
   if (!comments.length) {
     return '<div class="comments-empty">Sin comentarios aún.</div>';
@@ -352,7 +477,18 @@ window.deleteComment = async function(id) {
   } catch { showToast('Error al eliminar', 'error'); }
 };
 
+// ── Option selection (with deselect toggle) ───────────────────────────────────
 window.selectDetailOption = function(n) {
+  // Click same option again → deselect
+  if (currentSelection === n) {
+    currentSelection = null;
+    document.querySelectorAll('.detail-option').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('input[name="detail-option"]').forEach(r => r.checked = false);
+    const btn = document.getElementById('detail-approve');
+    if (btn) btn.disabled = true;
+    updateCommentButtons();
+    return;
+  }
   currentSelection = n;
   document.querySelectorAll('.detail-option').forEach(el => {
     el.classList.toggle('selected', parseInt(el.dataset.option) === n);
@@ -361,13 +497,25 @@ window.selectDetailOption = function(n) {
   if (radio) radio.checked = true;
   const btn = document.getElementById('detail-approve');
   if (btn) btn.disabled = false;
+  updateCommentButtons();
 };
 
+function updateCommentButtons() {
+  const approveBtn = document.getElementById('comment-approve-btn');
+  if (approveBtn) {
+    approveBtn.style.display = currentSelection ? '' : 'none';
+  }
+}
+
+// ── Remark / mark option ─────────────────────────────────────────────────────
 window.markOption = function(imgFilename, optionNumber) {
-  const isPaged = !!detailBody.querySelector('.detail-option-label')?.textContent.startsWith('Página');
+  // Detect if we're in a Diario carousel or normal options view
+  const isDiario = !!document.querySelector('.diario-carousel');
   openDrawModal(`/uploads/${imgFilename}`, async (blob, commentText) => {
     const fd = new FormData();
-    const defaultText = isPaged ? `Marca sobre Página ${optionNumber}` : `Marca sobre Opción ${optionNumber}`;
+    const defaultText = isDiario
+      ? `Marca sobre Página ${optionNumber}`
+      : `Marca sobre Opción ${optionNumber}`;
     fd.append('content', commentText?.trim() || defaultText);
     fd.append('image', blob, `marca-op${optionNumber}-${Date.now()}.png`);
     try {
@@ -379,14 +527,14 @@ window.markOption = function(imgFilename, optionNumber) {
   });
 };
 
+// ── Comment submission ────────────────────────────────────────────────────────
 window.submitComment = async function() {
   const text      = document.getElementById('comment-text').value.trim();
   const fileInput = document.getElementById('comment-image');
   const file      = fileInput?.files[0];
   if (!text && !file) { showToast('Escribí un comentario o adjuntá una imagen', 'error'); return; }
 
-  const sendBtn = document.getElementById('comment-send');
-  sendBtn.disabled = true; sendBtn.textContent = 'Enviando...';
+  setCommentBtnsDisabled(true);
 
   const fd = new FormData();
   if (text) fd.append('content', text);
@@ -396,18 +544,54 @@ window.submitComment = async function() {
     const res = await fetch(`/api/approvals/${currentDetailId}/comments`, { method: 'POST', body: fd });
     if (!res.ok) throw new Error();
     document.getElementById('comment-text').value = '';
-    if (fileInput) { fileInput.value = ''; }
+    if (fileInput) fileInput.value = '';
     document.getElementById('comment-attach-name').textContent = '';
     showToast('Comentario agregado', 'success');
     reloadDetail();
   } catch { showToast('Error al enviar', 'error'); }
-  finally { sendBtn.disabled = false; sendBtn.textContent = 'Enviar'; }
+  finally { setCommentBtnsDisabled(false); }
 };
 
+window.submitCommentAndApprove = async function() {
+  const text      = document.getElementById('comment-text').value.trim();
+  const fileInput = document.getElementById('comment-image');
+  const file      = fileInput?.files[0];
+
+  setCommentBtnsDisabled(true);
+
+  // Send comment first if there's content
+  if (text || file) {
+    const fd = new FormData();
+    if (text) fd.append('content', text);
+    if (file) fd.append('image', file);
+    try {
+      const res = await fetch(`/api/approvals/${currentDetailId}/comments`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error();
+    } catch {
+      showToast('Error al enviar comentario', 'error');
+      setCommentBtnsDisabled(false);
+      return;
+    }
+  }
+
+  // Then approve
+  await _doApprove();
+};
+
+function setCommentBtnsDisabled(state) {
+  document.querySelectorAll('.comment-btns button').forEach(b => b.disabled = state);
+}
+
+// ── Approve ───────────────────────────────────────────────────────────────────
 window.approveDetail = async function() {
+  await _doApprove();
+};
+
+async function _doApprove() {
   if (!currentSelection) return;
   const btn = document.getElementById('detail-approve');
-  btn.disabled = true; btn.textContent = 'Aprobando...';
+  if (btn) { btn.disabled = true; btn.textContent = 'Aprobando...'; }
+
   try {
     const res = await fetch(`/api/approvals/${currentDetailId}/approve`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -419,11 +603,15 @@ window.approveDetail = async function() {
     loadApprovals();
   } catch {
     showToast('Error al aprobar', 'error');
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Aprobar selección';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Aprobar selección';
+    }
+    setCommentBtnsDisabled(false);
   }
-};
+}
 
+// ── Reopen ────────────────────────────────────────────────────────────────────
 window.reopenDetail = async function() {
   if (!confirm('¿Volver a poner esta solicitud en pendiente? Se quitará la aprobación actual.')) return;
   try {
@@ -435,7 +623,7 @@ window.reopenDetail = async function() {
   } catch { showToast('Error al re-abrir', 'error'); }
 };
 
-// Download helper
+// ── Download helper ───────────────────────────────────────────────────────────
 window.downloadFile = function(src, filename) {
   fetch(`/api/download/${filename.split('/').pop()}`)
     .then(r => r.blob())
@@ -447,6 +635,7 @@ window.downloadFile = function(src, filename) {
     }).catch(() => showToast('Error al descargar', 'error'));
 };
 
+// ── Reload detail (refresh comments) ─────────────────────────────────────────
 async function reloadDetail() {
   if (!currentDetailId) return;
   try {
@@ -463,6 +652,7 @@ function closeDetail() {
   detailModal.classList.remove('active');
   currentDetailId  = null;
   currentSelection = null;
+  carouselIndex    = 0;
   detailBody.innerHTML = '';
 }
 
