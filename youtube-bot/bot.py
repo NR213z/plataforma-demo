@@ -8,8 +8,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 TOKEN = os.environ["BOT_TOKEN"]
 PORT = int(os.environ.get("PORT", 8080))
@@ -89,8 +89,22 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def download_and_send(update: Update, url: str, audio_only: bool = False):
-    msg = await update.message.reply_text("⏳ Descargando... un momento.")
+async def download_and_send(update: Update, url: str, audio_only: bool = False, from_callback=None):
+    if from_callback:
+        msg = from_callback
+        reply = from_callback.message.reply_to_message or from_callback.message
+        async def send_file(audio, video, filename):
+            if audio_only:
+                await reply.reply_audio(audio=audio, filename=filename)
+            else:
+                await reply.reply_video(video=video, filename=filename, supports_streaming=True)
+    else:
+        msg = await update.message.reply_text("⏳ Descargando... un momento.")
+        async def send_file(audio, video, filename):
+            if audio_only:
+                await update.message.reply_audio(audio=audio, filename=filename)
+            else:
+                await update.message.reply_video(video=video, filename=filename, supports_streaming=True)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -132,14 +146,7 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False):
             await msg.edit_text(f"📤 Enviando {file_path.name} ({size_mb:.1f} MB)...")
 
             with open(file_path, "rb") as f:
-                if audio_only:
-                    await update.message.reply_audio(audio=f, filename=file_path.name)
-                else:
-                    await update.message.reply_video(
-                        video=f,
-                        filename=file_path.name,
-                        supports_streaming=True,
-                    )
+                await send_file(audio=f, video=f, filename=file_path.name)
 
             await msg.delete()
 
@@ -173,9 +180,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     match = YOUTUBE_REGEX.search(text)
     if match:
-        await download_and_send(update, match.group(0))
+        url = match.group(0)
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎬 Video (720p)", callback_data=f"video|{url}"),
+                InlineKeyboardButton("🎵 Audio (MP3)", callback_data=f"audio|{url}"),
+            ]
+        ])
+        await update.message.reply_text("¿Qué formato querés?", reply_markup=keyboard)
     else:
         await update.message.reply_text("No encontré un link de YouTube. Mándame uno y lo descargo.")
+
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    action, url = query.data.split("|", 1)
+    await query.edit_message_text("⏳ Descargando... un momento.")
+    await download_and_send(update, url, audio_only=(action == "audio"), from_callback=query)
 
 
 def main():
@@ -186,6 +208,7 @@ def main():
     app.add_handler(CommandHandler("video", cmd_video))
     app.add_handler(CommandHandler("audio", cmd_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(handle_callback))
     print("Bot corriendo...")
     app.run_polling(drop_pending_updates=True)
 
