@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: youtube-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+    disk:
+      name: tmp-storage
+      mountPath: /tmp
+      sizeGB: 1
