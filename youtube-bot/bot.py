@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import asyncio
 import os
 import re
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -19,6 +21,7 @@ YOUTUBE_REGEX = re.compile(
 )
 
 MAX_SIZE_MB = 50
+PROGRESS_INTERVAL = 6  # segundos entre actualizaciones
 
 
 def ensure_yt_dlp():
@@ -39,7 +42,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"OK")
 
     def log_message(self, *args):
-        pass  # silenciar logs del servidor HTTP
+        pass
 
 
 def start_health_server():
@@ -50,7 +53,6 @@ def start_health_server():
 
 
 def compress_video(input_path: Path, tmpdir: Path) -> Path | None:
-    # obtener duración con ffprobe
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(input_path)],
@@ -61,7 +63,7 @@ def compress_video(input_path: Path, tmpdir: Path) -> Path | None:
     except ValueError:
         return None
 
-    target_bytes = 49 * 1024 * 1024  # 49MB con margen
+    target_bytes = 49 * 1024 * 1024
     total_bitrate = int((target_bytes * 8) / duration)
     audio_bitrate = 128_000
     video_bitrate = max(total_bitrate - audio_bitrate, 100_000)
@@ -79,6 +81,39 @@ def compress_video(input_path: Path, tmpdir: Path) -> Path | None:
     return output_path
 
 
+async def run_download_with_progress(cmd: list, msg) -> tuple[int, str]:
+    """Ejecuta yt-dlp y actualiza el mensaje con el progreso cada N segundos."""
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+
+    last_update = time.time()
+    stderr_lines = []
+    progress_line = ""
+
+    while True:
+        line_bytes = await process.stdout.readline()
+        if not line_bytes:
+            break
+        line = line_bytes.decode("utf-8", errors="ignore").strip()
+        stderr_lines.append(line)
+
+        if "[download]" in line and "%" in line:
+            progress_line = line
+            now = time.time()
+            if now - last_update >= PROGRESS_INTERVAL:
+                try:
+                    await msg.edit_text(f"⏳ {progress_line}")
+                    last_update = now
+                except Exception:
+                    pass
+
+    await process.wait()
+    return process.returncode, "\n".join(stderr_lines[-20:])
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hola! Mándame un link de YouTube y te descargo el video.\n\n"
@@ -93,22 +128,13 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
     if from_callback:
         msg = from_callback
         reply = from_callback.message.reply_to_message or from_callback.message
-        async def send_file(audio, video, filename):
-            if audio_only:
-                await reply.reply_audio(audio=audio, filename=filename)
-            else:
-                await reply.reply_video(video=video, filename=filename, supports_streaming=True)
     else:
         msg = await update.message.reply_text("⏳ Descargando... un momento.")
-        async def send_file(audio, video, filename):
-            if audio_only:
-                await update.message.reply_audio(audio=audio, filename=filename)
-            else:
-                await update.message.reply_video(video=video, filename=filename, supports_streaming=True)
+        reply = update.message
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            cmd = ["yt-dlp", "--no-playlist"]
+            cmd = ["yt-dlp", "--no-playlist", "--newline"]
 
             if audio_only:
                 cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
@@ -120,11 +146,10 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
 
             cmd += ["-o", f"{tmpdir}/%(title)s.%(ext)s", url]
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            returncode, output = await run_download_with_progress(cmd, msg)
 
-            if result.returncode != 0:
-                error = result.stderr[-600:] if result.stderr else "Error desconocido"
-                await msg.edit_text(f"Error al descargar:\n`{error}`", parse_mode="Markdown")
+            if returncode != 0:
+                await msg.edit_text(f"Error al descargar:\n`{output[-500:]}`", parse_mode="Markdown")
                 return
 
             files = list(Path(tmpdir).iterdir())
@@ -136,7 +161,7 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
             size_mb = file_path.stat().st_size / (1024 * 1024)
 
             if size_mb > MAX_SIZE_MB and not audio_only:
-                await msg.edit_text(f"El video pesa {size_mb:.1f} MB, comprimiendo para que entre en Telegram...")
+                await msg.edit_text(f"📦 El video pesa {size_mb:.1f} MB, comprimiendo para que entre en Telegram...")
                 file_path = compress_video(file_path, Path(tmpdir))
                 if file_path is None:
                     await msg.edit_text("No se pudo comprimir el video lo suficiente.")
@@ -146,7 +171,10 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
             await msg.edit_text(f"📤 Enviando {file_path.name} ({size_mb:.1f} MB)...")
 
             with open(file_path, "rb") as f:
-                await send_file(audio=f, video=f, filename=file_path.name)
+                if audio_only:
+                    await reply.reply_audio(audio=f, filename=file_path.name)
+                else:
+                    await reply.reply_video(video=f, filename=file_path.name, supports_streaming=True)
 
             await msg.delete()
 
