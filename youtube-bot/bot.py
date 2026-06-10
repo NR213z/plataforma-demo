@@ -15,6 +15,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 TOKEN = os.environ["BOT_TOKEN"]
 PORT = int(os.environ.get("PORT", 8080))
+COOKIES_FILE = "/tmp/yt_cookies.txt"
 
 YOUTUBE_REGEX = re.compile(
     r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)[\w\-?=&]+'
@@ -36,6 +37,14 @@ def ensure_yt_dlp():
             [sys.executable, "-m", "pip", "install", "--break-system-packages", "yt-dlp"],
             check=True,
         )
+
+
+def setup_cookies():
+    cookies = os.environ.get("YOUTUBE_COOKIES", "")
+    if cookies:
+        with open(COOKIES_FILE, "w") as f:
+            f.write(cookies)
+        print("Cookies de YouTube cargadas.")
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -138,6 +147,8 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
             cmd = ["yt-dlp", "--no-playlist", "--newline"]
+            if os.path.exists(COOKIES_FILE):
+                cmd += ["--cookies", COOKIES_FILE]
 
             if audio_only:
                 cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
@@ -259,6 +270,7 @@ async def download_worker():
 def main():
     global download_queue
     ensure_yt_dlp()
+    setup_cookies()
     start_health_server()
 
     async def post_init(app):
