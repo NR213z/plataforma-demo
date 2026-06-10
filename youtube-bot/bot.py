@@ -3,10 +3,12 @@ import asyncio
 import os
 import re
 import subprocess
-import sys
 import tempfile
 import threading
 import time
+import urllib.request
+import urllib.error
+import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -15,33 +17,15 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 TOKEN = os.environ["BOT_TOKEN"]
 PORT = int(os.environ.get("PORT", 8080))
-COOKIES_FILE = "/tmp/yt_cookies.txt"
+COBALT_API = "https://api.cobalt.tools/"
 
 YOUTUBE_REGEX = re.compile(
     r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)[\w\-?=&]+'
 )
 
 MAX_SIZE_MB = 50
-PROGRESS_INTERVAL = 6
-
 download_queue: asyncio.Queue = asyncio.Queue()
 queue_size: int = 0
-
-
-def ensure_yt_dlp():
-    print("Actualizando yt-dlp...")
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--break-system-packages", "-U", "yt-dlp"],
-        check=True,
-    )
-
-
-def setup_cookies():
-    cookies = os.environ.get("YOUTUBE_COOKIES", "")
-    if cookies:
-        with open(COOKIES_FILE, "w") as f:
-            f.write(cookies)
-        print("Cookies de YouTube cargadas.")
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -90,37 +74,55 @@ def compress_video(input_path: Path, tmpdir: Path) -> Path | None:
     return output_path
 
 
-async def run_download_with_progress(cmd: list, msg) -> tuple[int, str]:
-    """Ejecuta yt-dlp y actualiza el mensaje con el progreso cada N segundos."""
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+async def cobalt_download(url: str, audio_only: bool, tmpdir: str, msg) -> Path | None:
+    body = {
+        "url": url,
+        "videoQuality": "720",
+        "youtubeVideoCodec": "h264",
+        "audioFormat": "mp3" if audio_only else "best",
+        "downloadMode": "audio" if audio_only else "auto",
+    }
+
+    req = urllib.request.Request(
+        COBALT_API,
+        data=json.dumps(body).encode(),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
 
-    last_update = time.time()
-    stderr_lines = []
-    progress_line = ""
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        raise Exception(f"cobalt error {e.code}: {error_body[:300]}")
 
-    while True:
-        line_bytes = await process.stdout.readline()
-        if not line_bytes:
-            break
-        line = line_bytes.decode("utf-8", errors="ignore").strip()
-        stderr_lines.append(line)
+    status = data.get("status")
+    download_url = data.get("url")
+    filename = data.get("filename", "video.mp4" if not audio_only else "audio.mp3")
 
-        if "[download]" in line and "%" in line:
-            progress_line = line
-            now = time.time()
-            if now - last_update >= PROGRESS_INTERVAL:
-                try:
-                    await msg.edit_text(f"⏳ {progress_line}")
-                    last_update = now
-                except Exception:
-                    pass
+    if status not in ("tunnel", "redirect", "stream") or not download_url:
+        raise Exception(f"cobalt respuesta inesperada: {data}")
 
-    await process.wait()
-    return process.returncode, "\n".join(stderr_lines[-20:])
+    await msg.edit_text("⏳ Descargando archivo...")
+
+    output_path = Path(tmpdir) / filename
+    loop = asyncio.get_event_loop()
+
+    def download_file():
+        dl_req = urllib.request.Request(
+            download_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urllib.request.urlopen(dl_req, timeout=300) as r, open(output_path, "wb") as f:
+            while chunk := r.read(1024 * 64):
+                f.write(chunk)
+
+    await loop.run_in_executor(None, download_file)
+    return output_path
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -135,7 +137,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def download_and_send(update: Update, url: str, audio_only: bool = False, from_callback=None):
     if from_callback:
-        msg = from_callback  # ya es un Message
+        msg = from_callback
         reply = msg
     else:
         msg = await update.message.reply_text("⏳ Descargando... un momento.")
@@ -143,42 +145,15 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            cmd = [
-                "yt-dlp", "--no-playlist", "--newline",
-                "--extractor-args", "youtube:player_client=tv_embedded,ios,web",
-            ]
-            if os.path.exists(COOKIES_FILE):
-                cmd += ["--cookies", COOKIES_FILE]
+            file_path = await cobalt_download(url, audio_only, tmpdir, msg)
 
-            if audio_only:
-                cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
-            else:
-                cmd += [
-                    "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
-                    "--merge-output-format", "mp4",
-                ]
-
-            cmd += ["-o", f"{tmpdir}/%(title)s.%(ext)s", url]
-
-            returncode, output = await run_download_with_progress(cmd, msg)
-
-            if returncode != 0:
-                await msg.edit_text(f"Error al descargar:\n`{output[-500:]}`", parse_mode="Markdown")
-                return
-
-            files = list(Path(tmpdir).iterdir())
-            if not files:
-                await msg.edit_text("No se encontró el archivo descargado.")
-                return
-
-            file_path = files[0]
             size_mb = file_path.stat().st_size / (1024 * 1024)
 
             if size_mb > MAX_SIZE_MB and not audio_only:
-                await msg.edit_text(f"📦 El video pesa {size_mb:.1f} MB, comprimiendo para que entre en Telegram...")
+                await msg.edit_text(f"📦 El video pesa {size_mb:.1f} MB, comprimiendo...")
                 file_path = compress_video(file_path, Path(tmpdir))
                 if file_path is None:
-                    await msg.edit_text("No se pudo comprimir el video lo suficiente.")
+                    await msg.edit_text("No se pudo comprimir el video.")
                     return
                 size_mb = file_path.stat().st_size / (1024 * 1024)
 
@@ -193,7 +168,7 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
             await msg.delete()
 
         except Exception as e:
-            await msg.edit_text(f"Error inesperado: {e}")
+            await msg.edit_text(f"Error: {e}")
 
 
 async def cmd_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -239,7 +214,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     action, url = query.data.split("|", 1)
-    msg = query.message  # objeto Message real
+    msg = query.message
 
     queue_size += 1
     pos = download_queue.qsize()
@@ -268,9 +243,6 @@ async def download_worker():
 
 
 def main():
-    global download_queue
-    ensure_yt_dlp()
-    setup_cookies()
     start_health_server()
 
     async def post_init(app):
@@ -282,7 +254,7 @@ def main():
     app.add_handler(CommandHandler("audio", cmd_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
-    print("Bot corriendo...")
+    print("Bot corriendo con cobalt.tools...")
     app.run_polling(drop_pending_updates=True)
 
 
