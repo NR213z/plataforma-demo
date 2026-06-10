@@ -129,8 +129,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def download_and_send(update: Update, url: str, audio_only: bool = False, from_callback=None):
     if from_callback:
-        msg = from_callback
-        reply = from_callback.message.reply_to_message or from_callback.message
+        msg = from_callback  # ya es un Message
+        reply = msg
     else:
         msg = await update.message.reply_text("⏳ Descargando... un momento.")
         reply = update.message
@@ -228,26 +228,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     action, url = query.data.split("|", 1)
+    msg = query.message  # objeto Message real
 
     queue_size += 1
     pos = download_queue.qsize()
     if pos > 0:
-        await query.edit_message_text(f"🕐 Hay {pos} descarga(s) antes que la tuya. Esperá un momento...")
+        await msg.edit_text(f"🕐 Hay {pos} descarga(s) antes que la tuya. Esperá un momento...")
     else:
-        await query.edit_message_text("⏳ Descargando... un momento.")
+        await msg.edit_text("⏳ Descargando... un momento.")
 
-    await download_queue.put((update, url, action == "audio", query))
+    await download_queue.put((update, url, action == "audio", msg))
 
 
 async def download_worker():
     global queue_size
     while True:
-        update, url, audio_only, query = await download_queue.get()
+        update, url, audio_only, msg = await download_queue.get()
         try:
-            await download_and_send(update, url, audio_only=audio_only, from_callback=query)
+            await download_and_send(update, url, audio_only=audio_only, from_callback=msg)
         except Exception as e:
             try:
-                await query.edit_message_text(f"Error inesperado: {e}")
+                await msg.edit_text(f"Error inesperado: {e}")
             except Exception:
                 pass
         finally:
