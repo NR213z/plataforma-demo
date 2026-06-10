@@ -49,6 +49,36 @@ def start_health_server():
     print(f"Health server corriendo en puerto {PORT}")
 
 
+def compress_video(input_path: Path, tmpdir: Path) -> Path | None:
+    # obtener duración con ffprobe
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(input_path)],
+        capture_output=True, text=True
+    )
+    try:
+        duration = float(probe.stdout.strip())
+    except ValueError:
+        return None
+
+    target_bytes = 49 * 1024 * 1024  # 49MB con margen
+    total_bitrate = int((target_bytes * 8) / duration)
+    audio_bitrate = 128_000
+    video_bitrate = max(total_bitrate - audio_bitrate, 100_000)
+
+    output_path = tmpdir / ("compressed_" + input_path.stem + ".mp4")
+    result = subprocess.run([
+        "ffmpeg", "-y", "-i", str(input_path),
+        "-b:v", str(video_bitrate), "-b:a", str(audio_bitrate),
+        "-bufsize", str(video_bitrate * 2),
+        str(output_path)
+    ], capture_output=True)
+
+    if result.returncode != 0 or not output_path.exists():
+        return None
+    return output_path
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hola! Mándame un link de YouTube y te descargo el video.\n\n"
@@ -91,12 +121,13 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False):
             file_path = files[0]
             size_mb = file_path.stat().st_size / (1024 * 1024)
 
-            if size_mb > MAX_SIZE_MB:
-                await msg.edit_text(
-                    f"El archivo pesa {size_mb:.1f} MB y supera el límite de {MAX_SIZE_MB} MB de Telegram. "
-                    f"Intenta con una calidad menor usando /video."
-                )
-                return
+            if size_mb > MAX_SIZE_MB and not audio_only:
+                await msg.edit_text(f"El video pesa {size_mb:.1f} MB, comprimiendo para que entre en Telegram...")
+                file_path = compress_video(file_path, Path(tmpdir))
+                if file_path is None:
+                    await msg.edit_text("No se pudo comprimir el video lo suficiente.")
+                    return
+                size_mb = file_path.stat().st_size / (1024 * 1024)
 
             await msg.edit_text(f"📤 Enviando {file_path.name} ({size_mb:.1f} MB)...")
 
