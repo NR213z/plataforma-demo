@@ -146,7 +146,11 @@ async def download_and_send(update: Update, url: str, audio_only: bool = False, 
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            cmd = ["yt-dlp", "--no-playlist", "--newline"]
+            cmd = [
+                "yt-dlp", "--no-playlist", "--newline",
+                "--extractor-args", "youtube:player_client=ios,android,web",
+                "--user-agent", "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
+            ]
             if os.path.exists(COOKIES_FILE):
                 cmd += ["--cookies", COOKIES_FILE]
 
