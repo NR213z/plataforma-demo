@@ -21,7 +21,10 @@ YOUTUBE_REGEX = re.compile(
 )
 
 MAX_SIZE_MB = 50
-PROGRESS_INTERVAL = 6  # segundos entre actualizaciones
+PROGRESS_INTERVAL = 6
+
+download_queue: asyncio.Queue = asyncio.Queue()
+queue_size: int = 0
 
 
 def ensure_yt_dlp():
@@ -221,17 +224,46 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global queue_size
     query = update.callback_query
     await query.answer()
     action, url = query.data.split("|", 1)
-    await query.edit_message_text("⏳ Descargando... un momento.")
-    await download_and_send(update, url, audio_only=(action == "audio"), from_callback=query)
+
+    queue_size += 1
+    pos = download_queue.qsize()
+    if pos > 0:
+        await query.edit_message_text(f"🕐 Hay {pos} descarga(s) antes que la tuya. Esperá un momento...")
+    else:
+        await query.edit_message_text("⏳ Descargando... un momento.")
+
+    await download_queue.put((update, url, action == "audio", query))
+
+
+async def download_worker():
+    global queue_size
+    while True:
+        update, url, audio_only, query = await download_queue.get()
+        try:
+            await download_and_send(update, url, audio_only=audio_only, from_callback=query)
+        except Exception as e:
+            try:
+                await query.edit_message_text(f"Error inesperado: {e}")
+            except Exception:
+                pass
+        finally:
+            queue_size -= 1
+            download_queue.task_done()
 
 
 def main():
+    global download_queue
     ensure_yt_dlp()
     start_health_server()
-    app = Application.builder().token(TOKEN).build()
+
+    async def post_init(app):
+        asyncio.create_task(download_worker())
+
+    app = Application.builder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("video", cmd_video))
     app.add_handler(CommandHandler("audio", cmd_audio))
